@@ -1,15 +1,16 @@
 """
-This module defines an Airflow DAG for extracting data from SQL databases, saving the results locally,
-and uploading the processed files to a MinIO bucket. The DAG operates as a pipeline, executing SQL queries,
+This module defines an Airflow DAG for extracting data from SQL databases, 
+saving the results locally and uploading the processed files to a MinIO bucket. 
+The DAG operates as a pipeline, executing SQL queries,
 saving results in chunks, and transferring the data to MinIO for storage or further processing.
 
 The key components of this pipeline include:
 1. SQL query execution with chunked processing for large datasets.
-2. File storage in formats such as CSV and Parquet.
+2. File storage in formats such as CSV, Parquet and JSON.
 3. Integration with MinIO for file upload and management.
 
-Environment variables and Airflow Variables are used to dynamically configure the DAG, enabling flexible 
-deployment across different environments and datasets.
+Environment variables and Airflow Variables are used to dynamically configure the DAG, 
+enabling flexible deployment across different environments and datasets.
 """
 
 import json
@@ -117,6 +118,14 @@ def execute_sql_and_save(
                         temp_file, engine="pyarrow", compression="snappy"
                     )
                     temp_files.append(temp_file)
+                elif file_format.lower() == "json":
+                    chunk_df.to_json(
+                        local_filepath,
+                        orient="records",
+                        lines=True,
+                        index=False,
+                        mode="a" if os.path.exists(local_filepath) else "w",
+                    )
                 else:
                     raise ValueError(f"Unsupported file format: {file_format}")
 
