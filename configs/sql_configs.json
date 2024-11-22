@@ -1,0 +1,83 @@
+[
+  {
+    "dag_id": "postgresql_test",
+    "sql_conn_id": "postgres_conn_id",
+    "queries": {
+      "fileanme1": {
+        "sql": "SELECT * FROM schema.table_name;",
+        "format": "csv",
+        "dynamic_file_name": false
+      }
+    },
+    "bucket_name": "your_bucket",
+    "object_path": "your/object/path",
+    "interval": "30 14 * * *"
+  },
+  {
+    "dag_id": "mysql_test",
+    "sql_conn_id": "mysql_conn_id",
+    "queries": {
+      "config_source": {
+        "sql": "SELECT test1, test2 FROM schema.table_name;",
+        "format": "parquet",
+        "dynamic_file_name": true
+      }
+    },
+    "bucket_name": "your_bucket",
+    "object_path": "your/object/path",
+    "interval": "30 14 * * *"
+  },
+  {
+    "dag_id": "postgresql_test2",
+    "sql_conn_id": "postgres_conn_id_2",
+    "queries": {
+      "customer_entity": {
+        "sql": "SELECT * FROM schema.table_name WHERE creation_date >= '{ last_run_timestamp }';",
+        "format": "parquet",
+        "dynamic_file_name": true
+      }
+    },
+    "bucket_name": "your_bucket",
+    "object_path": "your/object/path",
+    "interval": "30 14 * * *"
+  },
+  {
+    "dag_id": "postgresql_to_test",
+    "sql_conn_id": "postgres_conn_id_2",
+    "queries": {
+      "product": {
+        "sql": "SELECT * FROM schema.view_name;",
+        "format": "parquet",
+        "dynamic_file_name": true
+      },
+      "customer_contact": {
+        "sql": "SELECT * FROM schema.view_name;",
+        "format": "parquet",
+        "dynamic_file_name": true
+      },
+      "customer_address": {
+        "sql": "SELECT * FROM schema.view_name;",
+        "format": "parquet",
+        "dynamic_file_name": true
+      },
+      "customer_inventory": {
+        "sql": "SELECT * FROM schema.view_name;",
+        "format": "parquet",
+        "dynamic_file_name": true
+      },
+      "customer_price": {
+        "sql": "SELECT * FROM schema.view_name;",
+        "format": "csv",
+        "dynamic_file_name": false
+      },
+      "customer_customer": {
+        "sql": "SELECT * FROM schema.view_name;",
+        "format": "csv",
+        "dynamic_file_name": true
+      }
+    },
+    "bucket_name": "your_bucket",
+    "object_path": "your/object/path",
+    "interval": "30 14 * * *"
+  }
+]

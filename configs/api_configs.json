@@ -1,0 +1,100 @@
+[
+  {
+    "dag_id": "fetch_basic_auth_data",
+    "api_url": "http://example.com/api/orders",
+    "headers": {"Accept": "application/json", "Content-Type": "aplication/json"},
+    "params": {"id": "2"},
+    "auth_type": "basic",
+    "auth_config": {
+      "username": "your_username",
+      "password": "your_password"
+    },
+    "output_files": {
+      "filename1": {
+        "format": "parquet",
+        "data_path": "$[*]",
+        "dynamic_file_name": false
+      },
+      "filename2": {
+        "format": "csv",
+        "data_path": "$[*]",
+        "dynamic_file_name": false
+      },
+      "filename3": {
+        "format": "json",
+        "data_path": "$[*]",
+        "dynamic_file_name": false
+      }
+    },
+    "bucket_name": "your_bucker",
+    "object_path": "your/object/path",
+    "interval": "0 6 * * *"
+  },
+  {
+    "dag_id": "fetch_oauth1_data",
+    "api_url": "https://example.com/api/orders",
+    "headers": {"Content-Type": "application/json;charset=utf-8"},
+    "params": {},
+    "auth_type": "oauth1",
+    "auth_config": {
+      "consumer_key": "your_consumer_key",
+      "consumer_secret": "your_consumer_secret",
+      "access_token": "your_access_token",
+      "token_secret": "your_access_token_secret",
+      "signature_method": "HMAC-SHA256"
+    },
+    "output_files": {
+      "filename1": {
+        "format": "parquet",
+        "data_path": "$[*]",
+        "dynamic_file_name": true
+      }, 
+      "filename2": {
+        "format": "csv",
+        "data_path": "$[*]",
+        "dynamic_file_name": true
+      }, 
+      "filename3": {
+        "format": "json",
+        "data_path": "$[*]",
+        "dynamic_file_name": true
+      }
+    },
+    "bucket_name": "your_bucket",
+    "object_path": "your/object/path",
+    "interval": "0 7 * * *"
+  },
+  {
+    "dag_id": "fetch_oauth2_data",
+    "api_url": "https://example.com/api/customers",
+    "headers": {"Content-Type": "application/json;charset=utf-8", "Cache-Control": "no-cache"},
+    "params": {},
+    "auth_type": "oauth2",
+    "auth_config": {
+      "token_url": "https://token-url.com/token",
+      "client_id": "your_client_id",
+      "client_secret": "your_client_secret",
+      "scope": "scope1,scope2,scope3,scopeN"
+    },
+    "output_files": {
+      "filename1": {
+        "format": "csv",
+        "data_path": "$[*].content[*]",
+        "dynamic_file_name": false
+      },
+      "filename2": {
+        "format": "json",
+        "data_path": "$[*].content[*].location[*]",
+        "dynamic_file_name": false
+      },
+      "filename3": {
+        "format": "parquet",
+        "data_path": "$[*].content[*].location[*]",
+        "dynamic_file_name": true
+      }
+    },
+    "bucket_name": "your_bucket",
+    "object_path": "your/object/path",
+    "interval": "0 9 * * *"
+  }
+]
