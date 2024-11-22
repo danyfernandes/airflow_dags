@@ -33,17 +33,20 @@ def execute_sql_and_save(
     sql_conn_id: str,
     queries: dict,
     tmp_dir: str = "/tmp/",
-    chunksize: int = 50000,
+    chunksize: int = 100000,
     **kwargs,
 ):
     """
     Executes SQL queries defined in the provided configuration, saves results to local files,
     and handles large datasets using chunking.
     """
-    if "mysql" in sql_conn_id:
+    conn = BaseHook.get_connection(sql_conn_id)
+    conn_type = conn.conn_type
+
+    if conn_type.lower() == "mysql":
         hook = MySqlHook(mysql_conn_id=sql_conn_id)
         logging.info("MySQL hook initialized!")
-    elif "postgres" in sql_conn_id:
+    elif conn_type.lower() == "postgres":
         hook = PostgresHook(postgres_conn_id=sql_conn_id)
         logging.info("PostgreSQL hook initialized!")
     else:
@@ -70,8 +73,13 @@ def execute_sql_and_save(
         sql_template = re.sub(r"\{\s*(\w+)\s*\}", r"{\1}", details["sql"])
         sql = sql_template.format(last_run_timestamp=last_run_timestamp)
         file_format = details["format"]
-        filename_with_timestamp = f"{filename}_{formatted_timestamp}.{file_format}"
-        local_filepath = os.path.join(tmp_dir, filename_with_timestamp)
+        dynamic_file_name = details.get("dynamic_file_name", False)
+        constructed_filename = f"{filename}.{file_format}"
+
+        if dynamic_file_name:
+            constructed_filename = f"{filename}_{formatted_timestamp}.{file_format}"
+
+        local_filepath = os.path.join(tmp_dir, constructed_filename)
 
         try:
             conn = hook.get_conn()
@@ -93,14 +101,14 @@ def execute_sql_and_save(
                     rows, columns=[desc[0] for desc in cursor.description]
                 )
 
-                if file_format == "csv":
+                if file_format.lower() == "csv":
                     chunk_df.to_csv(
                         local_filepath,
                         mode="a",
                         header=not os.path.exists(local_filepath),
                         index=False,
                     )
-                elif file_format == "parquet":
+                elif file_format.lower() == "parquet":
                     temp_file = os.path.join(
                         tmp_dir, f"temp_{filename}_{len(temp_files)}.parquet"
                     )
@@ -128,7 +136,7 @@ def execute_sql_and_save(
                 local_files.append(
                     {"original_name": filename, "filepath": local_filepath}
                 )
-                logging.info("File %s successfully processed!", filename_with_timestamp)
+                logging.info("File %s successfully processed!", constructed_filename)
             else:
                 logging.warning("No data returned for query %s. No file created.", sql)
 
@@ -191,7 +199,7 @@ try:
     logging.info("Configs JSON: %s", configs_json)
     sql_configs = json.loads(configs_json)
 except Exception as e:
-    raise AirflowFailException(f"Failed to load SFTP poller configurations: {e}") from e
+    raise AirflowFailException(f"Failed to load SQL configurations: {e}") from e
 
 
 default_args = {
@@ -200,9 +208,8 @@ default_args = {
     "start_date": datetime(2023, 10, 10),
     "email_on_failure": False,
     "email_on_retry": False,
-    "retries": 100,
+    "retries": 3,
     "retry_delay": timedelta(minutes=1),
-    "retry_exponential_backoff": True,
 }
 
 
