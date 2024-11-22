@@ -96,5 +96,27 @@
     "bucket_name": "your_bucket",
     "object_path": "your/object/path",
     "interval": "0 9 * * *"
+  },
+  {
+    "dag_id": "fetch_api_token_test",
+    "api_url": "https://test.example.com/api",
+    "headers": {"Accept": "application/json"},
+    "params": {"text": "test.test@example.com", "filter": "email"},
+    "auth_type": "api_token",
+    "auth_config": {
+      "api_key": "your_api_key",
+      "key_name": "Authorization",
+      "key_location": "header"
+    },
+    "output_files": {
+      "test_test": {
+        "format": "csv",
+        "data_path": "$[*]",
+        "dynamic_file_name": false
+      }
+    },
+    "bucket_name": "your_bucket",
+    "object_path": "your/object/path",
+    "interval": "0 10 * * *"
   }
 ]
