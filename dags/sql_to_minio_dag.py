@@ -126,18 +126,17 @@ def execute_sql_and_save(
                     )
                     temp_files.append(temp_file)
                 elif file_format.lower() == "json":
-                    chunk_df.to_json(
-                        local_filepath,
-                        orient="records",
-                        lines=True,
-                        index=False,
-                        mode="a" if os.path.exists(local_filepath) else "w",
+                    temp_file = os.path.join(
+                        tmp_dir, f"temp_{filename}_{len(temp_files)}.json"
                     )
+                    logging.info("Creating temporary JSON file in %s...", temp_file)
+                    chunk_df.to_json(temp_file, orient="records", index=False)
+                    temp_files.append(temp_file)
                 else:
                     raise ValueError(f"Unsupported file format: {file_format}")
 
             if data_returned:
-                if file_format == "parquet":
+                if file_format.lower() == "parquet":
                     logging.info("Merging temporary Parquet files into final file...")
                     combined_df = pd.concat(
                         [pd.read_parquet(temp_file) for temp_file in temp_files],
@@ -149,6 +148,20 @@ def execute_sql_and_save(
 
                     for temp_file in temp_files:
                         os.remove(temp_file)
+                    logging.info(
+                        "Parquet file successfully written to %s", local_filepath
+                    )
+                elif file_format.lower() == "json":
+                    logging.info("Merging temporary JSON files into final file...")
+                    dataframes = [pd.read_json(temp_file) for temp_file in temp_files]
+                    combined_df = pd.concat(dataframes, ignore_index=True)
+
+                    combined_df.to_json(local_filepath, orient="records", index=False)
+
+                    for temp_file in temp_files:
+                        os.remove(temp_file)
+
+                    logging.info("JSON file successfully written to %s", local_filepath)
                 local_files.append(
                     {"original_name": filename, "filepath": local_filepath}
                 )
