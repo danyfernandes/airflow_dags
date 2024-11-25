@@ -28,6 +28,20 @@
     "interval": "30 14 * * *"
   },
   {
+    "dag_id": "mysql_test_by_file",
+    "sql_conn_id": "mysql_conn_id",
+    "queries": {
+      "config_source": {
+        "sql": "/opt/airflow/dags/queries/test.sql",
+        "format": "csv",
+        "dynamic_file_name": true
+      }
+    },
+    "bucket_name": "your_bucket",
+    "object_path": "your/object/path",
+    "interval": "30 14 * * *"
+  },
+  {
     "dag_id": "postgresql_test2",
     "sql_conn_id": "postgres_conn_id_2",
     "queries": {

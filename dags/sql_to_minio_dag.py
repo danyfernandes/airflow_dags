@@ -71,7 +71,14 @@ def execute_sql_and_save(
     logging.info("Last run time: %s", last_run_timestamp)
 
     for filename, details in queries.items():
-        sql_template = re.sub(r"\{\s*(\w+)\s*\}", r"{\1}", details["sql"])
+        sql_template = details["sql"]
+
+        if os.path.exists(sql_template):
+            with open(sql_template, "r", encoding="utf-8") as sql_file:
+                sql_template = sql_file.read()
+            logging.info("SQL query loaded from file: %s", sql_template)
+
+        sql_template = re.sub(r"\{\s*(\w+)\s*\}", r"{\1}", sql_template)
         sql = sql_template.format(last_run_timestamp=last_run_timestamp)
         file_format = details["format"]
         dynamic_file_name = details.get("dynamic_file_name", False)
