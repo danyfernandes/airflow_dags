@@ -63,17 +63,20 @@ def handle_authentication(auth_type: str, auth_config: dict):
         token_url = auth_config["token_url"]
         client_id = auth_config["client_id"]
         client_secret = auth_config["client_secret"]
-        scope = auth_config.get("scope", "")
+        scope = auth_config.get("scope")
 
         try:
+            data = {
+                "grant_type": "client_credentials",
+                "client_id": client_id,
+                "client_secret": client_secret,
+            }
+            if scope:
+                data["scope"] = scope
+
             response = requests.post(
                 token_url,
-                data={
-                    "grant_type": "client_credentials",
-                    "client_id": client_id,
-                    "client_secret": client_secret,
-                    "scope": scope,
-                },
+                data,
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
                 timeout=30,
             )
@@ -186,7 +189,7 @@ def fetch_api_and_save(
             df.to_parquet(local_filepath, index=False)
         elif file_format == "json":
             with open(local_filepath, "w", encoding="utf-8") as json_file:
-                json.dump(extracted_data, json_file, indent=2)
+                json.dump(extracted_data, json_file)
         else:
             raise ValueError(f"Unsupported file format: {file_format}")
 
@@ -226,8 +229,6 @@ def upload_to_minio(bucket_name: str, object_path: str, **kwargs):
     files_metadata = task_instance.xcom_pull(
         key="files_metadata", task_ids="fetch_api_and_save"
     )
-
-    print(files_metadata)
 
     if not files_metadata:
         logging.warning("No file metadata found in XCom. Skipping!")
