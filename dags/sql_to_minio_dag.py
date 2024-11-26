@@ -20,6 +20,7 @@ from datetime import datetime, timedelta
 
 import boto3
 import pandas as pd
+import pendulum
 from airflow import DAG
 from airflow.exceptions import AirflowException, AirflowFailException
 from airflow.hooks.base import BaseHook
@@ -28,6 +29,8 @@ from airflow.operators.python import PythonOperator
 from airflow.providers.mysql.hooks.mysql import MySqlHook
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from jinja2 import Template
+
+DEFAULT_DATE = pendulum.datetime(1970, 1, 1)
 
 
 def execute_sql_and_save(
@@ -98,86 +101,83 @@ def execute_sql_and_save(
         local_filepath = os.path.join(tmp_dir, constructed_filename)
 
         try:
-            conn = hook.get_conn()
-            cursor = conn.cursor()
-            if isinstance(hook, PostgresHook):
-                cursor = conn.cursor(name=f"server_cursor_{filename}")
-            logging.info("Executing query: %s", sql)
-            cursor.execute(sql)
+            with hook.get_sqlalchemy_engine().connect().execution_options(stream_results=True) as conn:
+                temp_files = []
+                data_returned = False
+                chunk_count = 0
+                logging.info("Executing query: %s", sql)
+                for chunk_df in pd.read_sql(sql, conn, chunksize=chunksize):
+                    chunk_count += 1
+                    data_returned = True
 
-            temp_files = []
-            data_returned = False
-            while True:
-                rows = cursor.fetchmany(chunksize)
-                if not rows:
-                    break
+                    logging.info("Processing chunk %d with %d rows", chunk_count, len(chunk_df))
 
-                data_returned = True
-                chunk_df = pd.DataFrame(
-                    rows, columns=[desc[0] for desc in cursor.description]
-                )
+                    chunk_df = chunk_df.apply(
+                        lambda col: col.map(
+                            lambda x: str(x).replace("\n", " ").replace("\r", " ") if isinstance(x, str) else x
+                        )
+                    )
 
-                if file_format.lower() == "csv":
-                    chunk_df.to_csv(
-                        local_filepath,
-                        mode="a",
-                        header=not os.path.exists(local_filepath),
-                        index=False,
+                    if file_format.lower() == "csv":
+                        chunk_df.to_csv(
+                            local_filepath,
+                            mode="a",
+                            header=not os.path.exists(local_filepath),
+                            index=False,
+                            encoding="utf-8"
+                        )
+                    elif file_format.lower() == "parquet":
+                        temp_file = os.path.join(
+                            tmp_dir, f"temp_{filename}_{len(temp_files)}.parquet"
+                        )
+                        logging.info("Creating temporary Parquet file in %s...", temp_file)
+                        chunk_df.to_parquet(
+                            temp_file, engine="pyarrow", compression="snappy"
+                        )
+                        temp_files.append(temp_file)
+                    elif file_format.lower() == "json":
+                        temp_file = os.path.join(
+                            tmp_dir, f"temp_{filename}_{len(temp_files)}.json"
+                        )
+                        logging.info("Creating temporary JSON file in %s...", temp_file)
+                        chunk_df.to_json(temp_file, orient="records", index=False)
+                        temp_files.append(temp_file)
+                    else:
+                        raise ValueError(f"Unsupported file format: {file_format}")
+
+                if data_returned:
+                    if file_format.lower() == "parquet":
+                        logging.info("Merging temporary Parquet files into final file...")
+                        combined_df = pd.concat(
+                            [pd.read_parquet(temp_file) for temp_file in temp_files],
+                            ignore_index=True,
+                        )
+                        combined_df.to_parquet(
+                            local_filepath, engine="pyarrow", compression="snappy"
+                        )
+
+                        for temp_file in temp_files:
+                            os.remove(temp_file)
+                        logging.info(
+                            "Parquet file successfully written to %s", local_filepath
+                        )
+                    elif file_format.lower() == "json":
+                        logging.info("Merging temporary JSON files into final file...")
+                        dataframes = [pd.read_json(temp_file) for temp_file in temp_files]
+                        combined_df = pd.concat(dataframes, ignore_index=True)
+
+                        combined_df.to_json(local_filepath, orient="records", index=False)
+
+                        for temp_file in temp_files:
+                            os.remove(temp_file)
+
+                        logging.info("JSON file successfully written to %s", local_filepath)
+                    local_files.append(
+                        {"original_name": filename, "filepath": local_filepath}
                     )
-                elif file_format.lower() == "parquet":
-                    temp_file = os.path.join(
-                        tmp_dir, f"temp_{filename}_{len(temp_files)}.parquet"
-                    )
-                    logging.info("Creating temporary Parquet file in %s...", temp_file)
-                    chunk_df.to_parquet(
-                        temp_file, engine="pyarrow", compression="snappy"
-                    )
-                    temp_files.append(temp_file)
-                elif file_format.lower() == "json":
-                    temp_file = os.path.join(
-                        tmp_dir, f"temp_{filename}_{len(temp_files)}.json"
-                    )
-                    logging.info("Creating temporary JSON file in %s...", temp_file)
-                    chunk_df.to_json(temp_file, orient="records", index=False)
-                    temp_files.append(temp_file)
+                    logging.info("File %s successfully processed!", constructed_filename)
                 else:
-                    raise ValueError(f"Unsupported file format: {file_format}")
-
-            if data_returned:
-                if file_format.lower() == "parquet":
-                    logging.info("Merging temporary Parquet files into final file...")
-                    combined_df = pd.concat(
-                        [pd.read_parquet(temp_file) for temp_file in temp_files],
-                        ignore_index=True,
-                    )
-                    combined_df.to_parquet(
-                        local_filepath, engine="pyarrow", compression="snappy"
-                    )
-
-                    for temp_file in temp_files:
-                        os.remove(temp_file)
-                    logging.info(
-                        "Parquet file successfully written to %s", local_filepath
-                    )
-                elif file_format.lower() == "json":
-                    logging.info("Merging temporary JSON files into final file...")
-                    dataframes = [pd.read_json(temp_file) for temp_file in temp_files]
-                    combined_df = pd.concat(dataframes, ignore_index=True)
-
-                    combined_df.to_json(local_filepath, orient="records", index=False)
-
-                    for temp_file in temp_files:
-                        os.remove(temp_file)
-
-                    logging.info("JSON file successfully written to %s", local_filepath)
-                local_files.append(
-                    {"original_name": filename, "filepath": local_filepath}
-                )
-                logging.info("File %s successfully processed!", constructed_filename)
-            else:
-                logging.warning("No data returned for query %s. No file created.", sql)
-
-            cursor.close()
+                    logging.warning("No data returned for query %s. No file created.", sql)
         except Exception as e:
             logging.error("Failed to execute query for %s: %s", filename, e)
             raise AirflowFailException(

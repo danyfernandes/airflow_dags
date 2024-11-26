@@ -139,12 +139,8 @@ def fetch_api_and_save(
     last_run_timestamp = Variable.get(f"{dag_id}_last_run", default_var=None)
     if not last_run_timestamp:
         last_run_timestamp = "1970-01-01 00:00:00"
-    else:
-        last_run_timestamp = datetime.fromisoformat(last_run_timestamp).strftime(
-            "%Y-%m-%d %H:%M:%S"
-        )
 
-    current_run_timestamp = datetime.now().isoformat()
+    current_run_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     formatted_timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
 
     params = {
