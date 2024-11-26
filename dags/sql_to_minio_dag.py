@@ -20,7 +20,6 @@ from datetime import datetime, timedelta
 
 import boto3
 import pandas as pd
-import pendulum
 from airflow import DAG
 from airflow.exceptions import AirflowException, AirflowFailException
 from airflow.hooks.base import BaseHook
@@ -30,14 +29,12 @@ from airflow.providers.mysql.hooks.mysql import MySqlHook
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from jinja2 import Template
 
-DEFAULT_DATE = pendulum.datetime(1970, 1, 1)
-
 
 def execute_sql_and_save(
     sql_conn_id: str,
     queries: dict,
     tmp_dir: str = "/tmp/",
-    chunksize: int = 100000,
+    chunksize: int = 50000,
     **kwargs,
 ):
     """
@@ -64,14 +61,14 @@ def execute_sql_and_save(
     if not last_run_timestamp:
         last_run_timestamp = "1970-01-01 00:00:00"
 
-    current_run_timestamp = datetime.now().isoformat()
+    current_run_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     formatted_timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
 
     logging.info("Last run time: %s", last_run_timestamp)
 
     rendered_context = {
-        "now": datetime.now(),
-        "prev_end_date_success": kwargs.get("prev_end_date_success") or DEFAULT_DATE,
+        "now": current_run_timestamp,
+        "last_run_timestamp": last_run_timestamp,
     }
 
     for filename, details in queries.items():
