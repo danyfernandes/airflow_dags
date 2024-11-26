@@ -16,11 +16,11 @@ enabling flexible deployment across different environments and datasets.
 import json
 import logging
 import os
-import re
 from datetime import datetime, timedelta
 
 import boto3
 import pandas as pd
+import pendulum
 from airflow import DAG
 from airflow.exceptions import AirflowException, AirflowFailException
 from airflow.hooks.base import BaseHook
@@ -28,6 +28,9 @@ from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.mysql.hooks.mysql import MySqlHook
 from airflow.providers.postgres.hooks.postgres import PostgresHook
+from jinja2 import Template
+
+DEFAULT_DATE = pendulum.datetime(1970, 1, 1)
 
 
 def execute_sql_and_save(
@@ -60,26 +63,34 @@ def execute_sql_and_save(
     last_run_timestamp = Variable.get(f"{dag_id}_last_run", default_var=None)
     if not last_run_timestamp:
         last_run_timestamp = "1970-01-01 00:00:00"
-    else:
-        last_run_timestamp = datetime.fromisoformat(last_run_timestamp).strftime(
-            "%Y-%m-%d %H:%M:%S"
-        )
 
     current_run_timestamp = datetime.now().isoformat()
     formatted_timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
 
     logging.info("Last run time: %s", last_run_timestamp)
 
+    rendered_context = {
+        "now": datetime.now(),
+        "prev_end_date_success": kwargs.get("prev_end_date_success") or DEFAULT_DATE,
+    }
+
     for filename, details in queries.items():
-        sql_template = details["sql"]
+        raw_sql = details["sql"]
 
-        if os.path.exists(sql_template):
-            with open(sql_template, "r", encoding="utf-8") as sql_file:
-                sql_template = sql_file.read()
-            logging.info("SQL query loaded from file: %s", sql_template)
+        # If `raw_sql` is a file path, load the SQL content
+        if os.path.exists(raw_sql):
+            with open(raw_sql, "r", encoding="utf-8") as sql_file:
+                raw_sql = sql_file.read()
+            logging.info("SQL query loaded from file: %s", sql_file.name)
 
-        sql_template = re.sub(r"\{\s*(\w+)\s*\}", r"{\1}", sql_template)
-        sql = sql_template.format(last_run_timestamp=last_run_timestamp)
+        # Render SQL with Jinja templates
+        try:
+            template = Template(raw_sql)
+            sql = template.render(rendered_context)
+            logging.debug("Rendered SQL query: %s", sql)
+        except Exception as e:
+            raise AirflowFailException(f"Failed to render SQL template: {e}") from e
+
         file_format = details["format"]
         dynamic_file_name = details.get("dynamic_file_name", False)
         constructed_filename = f"{filename}.{file_format}"
