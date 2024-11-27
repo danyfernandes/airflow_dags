@@ -136,12 +136,14 @@ def fetch_api_and_save(
         else:
             headers.update(auth)
 
+    dag_run_date = kwargs["dag_run"].start_date.strftime("%Y-%m-%d %H:%M:%S")
+
     last_run_timestamp = Variable.get(f"{dag_id}_last_run", default_var=None)
     if not last_run_timestamp:
         last_run_timestamp = "1970-01-01 00:00:00"
 
     current_run_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    formatted_timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    formatted_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     params = {
         key: (
@@ -174,6 +176,8 @@ def fetch_api_and_save(
         extracted_data = extract_data(data, data_path)
         df = pd.json_normalize(extracted_data)
         filename_constructed = f"{filename}.{file_format}"
+
+        df["source_date"] = dag_run_date
 
         if dynamic_file_name:
             filename_constructed = f"{filename}_{formatted_timestamp}.{file_format}"

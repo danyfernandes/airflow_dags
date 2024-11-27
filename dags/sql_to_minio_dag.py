@@ -60,12 +60,14 @@ def execute_sql_and_save(
     dag_id = kwargs["dag"].dag_id
     local_files = []
 
+    dag_run_date = kwargs["dag_run"].start_date.strftime("%Y-%m-%d %H:%M:%S")
+
     last_run_timestamp = Variable.get(f"{dag_id}_last_run", default_var=None)
     if not last_run_timestamp:
         last_run_timestamp = "1970-01-01 00:00:00"
 
     current_run_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    formatted_timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    formatted_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     logging.info("Last run time: %s", last_run_timestamp)
 
@@ -111,6 +113,8 @@ def execute_sql_and_save(
                     data_returned = True
 
                     logging.info("Processing chunk %d with %d rows", chunk_count, len(chunk_df))
+
+                    chunk_df["source_date"] = dag_run_date
 
                     chunk_df = chunk_df.apply(
                         lambda col: col.map(
