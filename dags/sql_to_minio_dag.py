@@ -116,6 +116,8 @@ def execute_sql_and_save(
 
                     chunk_df["source_date"] = dag_run_date
 
+                    chunk_df.replace(to_replace=r"\x00", value="", regex=True, inplace=True)
+
                     chunk_df = chunk_df.apply(
                         lambda col: col.map(
                             lambda x: str(x).replace("\n", " ").replace("\r", " ") if isinstance(x, str) else x
@@ -144,7 +146,7 @@ def execute_sql_and_save(
                             tmp_dir, f"temp_{filename}_{len(temp_files)}.json"
                         )
                         logging.info("Creating temporary JSON file in %s...", temp_file)
-                        chunk_df.to_json(temp_file, orient="records", index=False)
+                        chunk_df.to_json(temp_file, orient="records", index=False, date_format="iso")
                         temp_files.append(temp_file)
                     else:
                         raise ValueError(f"Unsupported file format: {file_format}")
@@ -170,7 +172,7 @@ def execute_sql_and_save(
                         dataframes = [pd.read_json(temp_file) for temp_file in temp_files]
                         combined_df = pd.concat(dataframes, ignore_index=True)
 
-                        combined_df.to_json(local_filepath, orient="records", index=False)
+                        combined_df.to_json(local_filepath, orient="records", index=False, date_format="iso")
 
                         for temp_file in temp_files:
                             os.remove(temp_file)
